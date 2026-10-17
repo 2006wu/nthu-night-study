@@ -9,5 +9,3 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: APP_ACCESS_PASSWORD
-        generateValue: true

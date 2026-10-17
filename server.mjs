@@ -119,14 +119,13 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==='GET'&&req.url==='/healthz'){respond(res,200,{ok:true});return;}
   if(req.headers.host!==deployment.host){respond(res,403,{error:'網址不符'});return;}
   if(deployment.production&&req.headers['x-forwarded-proto']!=='https'){res.writeHead(308,{Location:ORIGIN+req.url});res.end();return;}
-  if(!deployment.authorized(req.headers.authorization)){res.writeHead(401,{'WWW-Authenticate':'Basic realm="Night Study", charset="UTF-8"','Content-Type':'text/plain; charset=utf-8'});res.end('請輸入網站入口帳密');return;}
   if(req.method==='POST'&&(req.headers.origin!==ORIGIN||!String(req.headers['content-type']).startsWith('application/json'))){respond(res,403,{error:'來源驗證失敗'});return;}
   let id=req.headers.cookie?.split(/;\s*/).find(part=>part.startsWith(deployment.cookieName+'='))?.slice(deployment.cookieName.length+1);
   if(!/^[a-f0-9]{48}$/.test(id||'')||!sessions.has(id)){id=randomBytes(24).toString('hex');sessions.set(id,{attempts:[],last:Date.now()});res.setHeader('Set-Cookie',`${deployment.cookieName}=${id}; HttpOnly; SameSite=Strict; Path=/${deployment.cookieFlags}`);}
   const s=sessions.get(id);s.last=Date.now();
   const path=new URL(req.url,ORIGIN).pathname;
   try{
-    if(req.method==='GET'&&path==='/api/status'){respond(res,200,{authenticated:!!s.auth,busy:!!s.busy,version:'0.4.0'});return;}
+    if(req.method==='GET'&&path==='/api/status'){respond(res,200,{authenticated:!!s.auth,busy:!!s.busy,version:'0.5.1'});return;}
     if(req.method==='POST'&&path.startsWith('/api/')){
       if(s.busy){respond(res,409,{error:'上一個操作仍在執行，請稍候'});return;}
       let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>4096)throw new Error('輸入資料過長');}const body=JSON.parse(raw||'{}');s.busy=true;

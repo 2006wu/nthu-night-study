@@ -26,11 +26,10 @@
 2. 開啟 https://render.com/deploy?repo=https://github.com/2006wu/nthu-night-study ，登入並依畫面建立 Blueprint。
 3. 確認服務名稱為 nthu-night-study、方案為 Free，再部署。
 4. 成功後開啟 Render 提供的 HTTPS 網址。
-5. 網站入口帳號為 `owner`。入口密碼是 Render 服務 Environment 裡自動產生的 `APP_ACCESS_PASSWORD`，也可自行換成長密碼。這個密碼與圖書館密碼不同。
-6. 通過入口後，才在網頁輸入圖書館帳密及驗證碼。
+5. 網頁直接開啟，不需要額外的 owner 帳密。使用查詢、預約及取消前，仍需輸入自己的圖書館帳密與驗證碼。
 
-若用手動 Web Service：Runtime 選 Node，Build Command 填 `npm test`、Start Command 填 `npm start`，設定 NODE_ENV=production 及 APP_ACCESS_PASSWORD（長密碼）。Render 的 RENDER_EXTERNAL_URL 會自動作為網站網址；自訂網域時另外設定 PUBLIC_ORIGIN=https://你的網域。
+若用手動 Web Service：Runtime 選 Node，Build Command 填 `npm test`、Start Command 填 `npm start`，設定 NODE_ENV=production。Render 的 RENDER_EXTERNAL_URL 會自動作為網站網址；自訂網域時另外設定 PUBLIC_ORIGIN=https://你的網域。
 
 只需單一服務實例。官方登入狀態僅在記憶體：服務重啟、更新或免費方案休眠後，需重新登入；官方已建立的預約不會消失。免費服務閒置 15 分鐘可能休眠，重新開啟需要等待啟動。部署後還需實測雲端到圖書館的連線，部分學校服務可能限制資料中心 IP。
 
-雲端啟動需 HTTPS 網址及網站入口密碼，缺少設定會拒絕啟動。Cookie 使用 Secure、HttpOnly、SameSite=Strict，請求只接受設定的網站來源。不要把任何實際帳密放進程式、GitHub 或 render.yaml。
+雲端啟動需 HTTPS 網址。網站公開可開啟，圖書館操作以各自的登入狀態驗證。Cookie 使用 Secure、HttpOnly、SameSite=Strict，請求只接受設定的網站來源。不要把任何實際帳密放進程式、GitHub 或 render.yaml。

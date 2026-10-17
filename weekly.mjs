@@ -1,4 +1,5 @@
 import {randomBytes} from 'node:crypto';
+import {nightStatus} from './night-status.mjs';
 import {availability} from './availability.mjs';
 import {selectedSlots} from './booking.mjs';
 const DAY=86400000,HOUR=3600000;
@@ -52,8 +53,9 @@ export function weeklyService(api,now=()=>Date.now()){
         }
         if(start<now()){ day.message='21:00 已過，不自動更改時段';options.push([]);continue;}
         try{
-          const raw=await api(s,'GetAllBookStatus.aspx',{spacetype:8,sdate:date.replaceAll('-',''),zoneid:null});
-          const rows=availability(raw,date+'T21:00').results.filter(r=>/^\d+$/.test(r.deviceid)&&r.availableAtStart&&r.end>=end);
+          const fetched=await nightStatus(api,s,date);
+          const unique=new Map();for(const raw of fetched.payloads)for(const r of availability(raw,date+'T21:00').results)unique.set(r.deviceid+'/'+r.start+'/'+r.end,r);
+          const rows=[...unique.values()].filter(r=>/^\d+$/.test(r.deviceid)&&r.availableAtStart&&r.end>=end);
           options.push(rows);if(!rows.length)day.message='尚未開放或沒有完整 3 小時空位';
         }catch(e){if(!s.auth)throw e;options.push([]);day.message=e.message;}
       }

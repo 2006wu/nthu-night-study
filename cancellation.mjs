@@ -3,7 +3,7 @@ const statuses={'-1':'尚未審核','0':'預約成功','1':'尚未簽到','2':'�
 const cancellable=row=>['-1','0','1'].includes(String(row.usestatus));
 const own=(row,s)=>String(row.spacetype)==='8'&&String(row.userid||'').toUpperCase().split('|').includes(String(s.userId).toUpperCase());
 const fingerprint=row=>JSON.stringify([row.bookid,row.devname,row.zoneid,row.bookedatetime,row.userid,row.spacetype]);
-function summary(row){return{seat:String(row.devname||''),zone:String(row.zoneid||'').match(/8_4([BCDE])$/)?.[1]||String(row.zonename||'夜讀區'),time:String(row.bookedatetime||''),status:statuses[String(row.usestatus)]||'不可取消',canCancel:cancellable(row)};}
+function summary(row){return{seat:String(row.devname||''),zone:String(row.zoneid||'').match(/8_4([ABCDE])$/)?.[1]||String(row.zonename||'夜讀區'),time:String(row.bookedatetime||''),status:statuses[String(row.usestatus)]||'不可取消',canCancel:cancellable(row)};}
 export function cancellationService(api,now=()=>Date.now()){
   function auth(s){if(!s.auth||!s.userId)throw new Error('請先登入');}
   async function records(s){auth(s);const response=await api(s,'GetBookInfo.aspx');const rows=response[0]?.resdata;if(rows==null)return[];if(!Array.isArray(rows))throw new Error('官方預約資料格式已變更');return rows.filter(row=>own(row,s));}

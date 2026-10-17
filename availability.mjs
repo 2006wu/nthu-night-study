@@ -22,12 +22,18 @@ export function availability(data, requested) {
   const target = Date.parse(`${requested}:00${TZ}`);
   if (!Number.isFinite(target)) throw new Error('請輸入有效日期與開始時間');
   const bounds = data.booktime.map((t,i)=>slotBounds(data.bookdate[i],t));
-  const results=[]; let seats=0;
+  const results=[],aSeats=[]; let seats=0;
   for (const device of data.deviceinfo) {
-    const zone = String(device.zoneid || '').match(/(?:8_4)?([BCDE])$/)?.[1];
+    const zone = String(device.zoneid || '').match(/(?:8_4)?([ABCDE])$/)?.[1];
     if (!zone) continue;
     seats++;
     if (!Array.isArray(device.canbook) || device.canbook.length !== bounds.length) throw new Error('座位時段資料不完整，請重新查詢');
+    if(zone==='A'){
+      const index=bounds.findIndex(b=>b.start<=target&&target<b.end);
+      const raw=index<0?null:device.canbook[index];
+      const reason=index<0?'':String(device.reason?.[index]||'');
+      aSeats.push({seat:String(device.devicename),deviceid:String(device.deviceid||''),zone,onlineAvailable:String(raw)==='1',message:index<0?'官方未提供此時段狀態':String(raw)==='1'?'可網路預約':reason&&!/^\d+$/.test(reason)?reason:'官方未開放此時段網路預約'});
+    }
     let range=null; const runs=[];
     bounds.forEach((b,i)=>{
       if (String(device.canbook[i]) === '1') {
@@ -42,5 +48,5 @@ export function availability(data, requested) {
     }
   }
   results.sort((a,b)=>Number(b.availableAtStart)-Number(a.availableAtStart)||a.waitMinutes-b.waitMinutes||b.minutes-a.minutes||a.seat.localeCompare(b.seat));
-  return {results,seats,requested,target,coverage:bounds.length?{start:Math.min(...bounds.map(b=>b.start)),end:Math.max(...bounds.map(b=>b.end))}:null};
+  return {results,aSeats,seats,requested,target,coverage:bounds.length?{start:Math.min(...bounds.map(b=>b.start)),end:Math.max(...bounds.map(b=>b.end))}:null};
 }

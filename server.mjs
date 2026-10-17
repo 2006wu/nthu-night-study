@@ -2,6 +2,7 @@ import http from 'node:http';
 import {randomBytes,createDecipheriv} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
+import {nightStatus} from './night-status.mjs';
 import {availability} from './availability.mjs';
 import {weeklyService} from './weekly.mjs';
 import {bookingService} from './booking.mjs';
@@ -105,12 +106,13 @@ async function query(s,body) {
   const day=new Date(body.date+'T12:00:00+08:00');const dates=[body.date];
   if(Number(body.time.slice(0,2))<12){day.setUTCDate(day.getUTCDate()-1);dates.unshift(day.toISOString().slice(0,10));}
   const all=[];const warnings=[];
-  for(const date of dates){try{const data=await api(s,'GetAllBookStatus.aspx',{spacetype:8,sdate:date.replaceAll('-',''),zoneid:null});const normalized=availability(data,requested);for(const r of normalized.results)r.businessDate=date;all.push(normalized);}catch(e){if(!s.auth)throw e;warnings.push(`${date}：${e.message}`);}}
+  for(const date of dates){try{const fetched=await nightStatus(api,s,date);warnings.push(...fetched.warnings);for(const data of fetched.payloads){const normalized=availability(data,requested);for(const r of normalized.results)r.businessDate=date;all.push(normalized);}}catch(e){if(!s.auth)throw e;warnings.push(`${date}：${e.message}`);}}
   if(!all.length)throw new Error(warnings.join('；')||'無法讀取座位');
   const unique=new Map();for(const a of all)for(const r of a.results){const k=`${r.seat}/${r.start}/${r.end}`;unique.set(k,r);}
   const results=[...unique.values()].sort((a,b)=>Number(b.availableAtStart)-Number(a.availableAtStart)||a.waitMinutes-b.waitMinutes||b.minutes-a.minutes||a.seat.localeCompare(b.seat));
+  const aSeatMap=new Map();for(const a of all)for(const seat of a.aSeats){const previous=aSeatMap.get(seat.seat);if(!previous||seat.onlineAvailable||previous.message==='官方未提供此時段狀態')aSeatMap.set(seat.seat,seat);}
   s.offers=new Map();for(const r of results){if(!/^\d+$/.test(r.deviceid))continue;const id=randomBytes(16).toString('hex');s.offers.set(id,{...r,at:Date.now()});r.offerId=id;}
-  return {results,seats:Math.max(...all.map(x=>x.seats)),requested,updatedAt:new Date().toISOString(),warnings,params:params?{bookrealeasedays:params.bookrealeasedays}:null};
+  return {results,aSeats:[...aSeatMap.values()].sort((a,b)=>a.seat.localeCompare(b.seat)),seats:Math.max(...all.map(x=>x.seats)),requested,updatedAt:new Date().toISOString(),warnings,params:params?{bookrealeasedays:params.bookrealeasedays}:null};
 }
 function respond(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));}
 const booking=bookingService(api);
@@ -127,7 +129,7 @@ const server=http.createServer(async(req,res)=>{
   const s=sessions.get(id);s.last=Date.now();
   const path=new URL(req.url,ORIGIN).pathname;
   try{
-    if(req.method==='GET'&&path==='/api/status'){respond(res,200,{authenticated:!!s.auth,busy:!!s.busy,version:'0.7.0'});return;}
+    if(req.method==='GET'&&path==='/api/status'){respond(res,200,{authenticated:!!s.auth,busy:!!s.busy,version:'0.7.1'});return;}
     if(req.method==='POST'&&path.startsWith('/api/')){
       if(s.busy){respond(res,409,{error:'上一個操作仍在執行，請稍候'});return;}
       let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>4096)throw new Error('輸入資料過長');}const body=JSON.parse(raw||'{}');s.busy=true;

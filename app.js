@@ -31,12 +31,17 @@ function render(){const root=$('results');root.replaceChildren();if(!data){$('re
  const rows=data.results.filter(r=>(zone==='all'||r.zone===zone)&&r.minutes>=Number($('minDuration').value)&&($('includeLater').checked||r.availableAtStart)&&(!$('favoriteOnly').checked||favorites.has(r.seat))).sort((a,b)=>Number(favorites.has(b.seat))-Number(favorites.has(a.seat)));
  const seatCount=new Set(rows.map(r=>r.seat)).size;
  $('resultTitle').textContent=`${seatCount} 個座位`;$('resultMeta').textContent=`${data.requested.replace('T',' ')} 起 · ${clock(Date.parse(data.updatedAt))} 更新`;
- if(!rows.length){const empty=node('div','empty');empty.append(node('p','','沒有符合條件的座位'));root.append(empty);return;}
+ const occupiedNames=new Set(rows.map(r=>r.seat));
+ const aReadOnly=(zone==='A'||zone==='all')?(data.aSeats||[]).filter(r=>!occupiedNames.has(r.seat)&&!r.onlineAvailable&&(!$('favoriteOnly').checked||favorites.has(r.seat))):[];
+ if(zone==='A'&&!data.aSeats?.length&&!rows.length){root.append(node('div','empty','官方未回傳 A 區座位資料'));return;}
+ if(!rows.length&&!aReadOnly.length){const empty=node('div','empty');empty.append(node('p','','沒有符合條件的座位'));root.append(empty);return;}
  for(const r of rows){const card=node('article','seat'+(r.availableAtStart?'':' later'));const top=node('div','seat-top');const name=node('div');name.append(node('span','seat-id',r.seat),node('span','zone-tag',r.zone+' 區'));const star=node('button','favorite',favorites.has(r.seat)?'★':'☆');star.type='button';star.setAttribute('aria-label',`${favorites.has(r.seat)?'取消收藏':'收藏'} ${r.seat}`);star.setAttribute('aria-pressed',String(favorites.has(r.seat)));star.onclick=()=>{favorites.has(r.seat)?favorites.delete(r.seat):favorites.add(r.seat);try{localStorage.setItem('seat-favorites',JSON.stringify([...favorites]));}catch{}render();};top.append(name,star);
  const sameDay=parts(r.start).slice(0,10)===parts(r.end).slice(0,10);const hours=node('div','seat-hours',`${clock(r.start)} — ${sameDay?'':parts(r.end).slice(5,10)+' '}${clock(r.end)}`);
  const bottom=node('div','seat-bottom');bottom.append(node('span','duration',r.availableAtStart?`可坐 ${duration(r.minutes)}`:`等待 ${duration(r.waitMinutes)}`));const link=node('a','',r.zone+' 區配置圖 ↗');link.href=`https://libsms.lib.nthu.edu.tw/system/zoneData.aspx?zone=8_4${r.zone}`;link.target='_blank';link.rel='noopener noreferrer';bottom.append(link);card.append(top,hours,bottom);
  if(r.offerId){const book=node('button','reserve-button','預約');book.type='button';book.setAttribute('aria-label',`預約 ${r.seat}`);book.onclick=()=>openBooking(r);card.append(book);}
  if(!r.availableAtStart)card.append(node('p','cap-note',`入座後可坐 ${duration(r.minutes)}`));if(r.minutes>480)card.append(node('p','cap-note',`單次最多 8 小時`));root.append(card);}
+ for(const r of aReadOnly){const card=node('article','seat');const top=node('div','seat-top');top.append(node('span','seat-id',r.seat),node('span','zone-tag','A 區'));card.append(top,node('p','muted',r.message),node('p','cap-note','請至現場機台確認；此狀態不代表座位已被使用'));root.append(card);}
+ if(aReadOnly.length)$('resultTitle').textContent=`${seatCount} 個可預約座位`;
 }
 for(const b of $('zones').querySelectorAll('button'))b.onclick=()=>{zone=b.dataset.zone;for(const button of $('zones').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button===b));render();};
 for(const id of ['minDuration','includeLater','favoriteOnly'])$(id).onchange=render;

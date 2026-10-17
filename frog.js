@@ -5,7 +5,7 @@
   function update() {
     const loggedIn = byId('connection').classList.contains('connected');
     const result = byId('resultTitle').textContent;
-    const seatCount = Number(result.match(/(\d+) 個座位/)?.[1] || 0);
+    const seatCount = Number(result.match(/(\d+) 個(?:可預約)?座位/)?.[1] || 0);
     const message = byId('notice');
     let text = '呱～先登入，再來找位子。';
     let action = '前往登入';
@@ -41,7 +41,7 @@
     if (!byId('connection').classList.contains('connected')) {
       byId('loginPanel').open = true;
       byId('account').focus();
-    } else if (Number(byId('resultTitle').textContent.match(/(\d+) 個座位/)?.[1]) > 0) {
+    } else if (Number(byId('resultTitle').textContent.match(/(\d+) 個(?:可預約)?座位/)?.[1]) > 0) {
       byId('results').scrollIntoView({ block: 'start' });
     } else {
       byId('date').focus();

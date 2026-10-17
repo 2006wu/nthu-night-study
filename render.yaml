@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: nthu-night-study
+    runtime: node
+    plan: free
+    buildCommand: npm test
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ACCESS_PASSWORD
+        generateValue: true

@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {availability,slotBounds} from './availability.mjs';
+const sample={bookdate:['2026/10/17','2026/10/17','2026/10/18','2026/10/18','2026/10/18'],booktime:['23:00~23:29','23:30~23:59','00:00~00:29','00:30~00:59','01:00~01:29'],deviceinfo:[{zoneid:'8_4E',devicename:'M154',canbook:['1','1','1','0','1']},{zoneid:'8_4B',devicename:'M037',canbook:['0','1','1','1','1']}]};
+test('半小時結束點與跨午夜',()=>{const b=slotBounds('20261017','23:30~23:59');assert.equal(new Date(b.end).toISOString(),'2026-10-17T16:00:00.000Z');});
+test('連續空檔遇到不可預約即中斷',()=>{const d=availability(sample,'2026-10-17T23:00');const r=d.results.filter(x=>x.seat==='M154');assert.equal(r.length,2);assert.equal(r[0].minutes,90);assert.equal(r[1].minutes,30);assert.equal(r[1].waitMinutes,120);assert.equal(d.seats,2);});
+test('指定時間以後可坐時數與晚點有位分開',()=>{const d=availability(sample,'2026-10-17T23:30');assert.equal(d.results[0].seat,'M037');assert.equal(d.results[0].minutes,120);assert.equal(d.results[1].minutes,60);});
+test('空檔結束點不算可入座',()=>{const d=availability(sample,'2026-10-18T00:30');assert.equal(d.results.find(x=>x.seat==='M154').availableAtStart,false);});
+test('未知狀態不能當成空位',()=>{const d=structuredClone(sample);d.deviceinfo[0].canbook=['?','?','?','?','?'];assert.equal(availability(d,'2026-10-17T23:00').results.some(x=>x.seat==='M154'),false);});
+test('資料不完整與格式變更明確失敗',()=>{const d=structuredClone(sample);d.deviceinfo[0].canbook.pop();assert.throws(()=>availability(d,'2026-10-17T23:00'),/不完整/);assert.throws(()=>slotBounds('20261017','23:30~23:45'),/半小時/);});

@@ -1,0 +1,7 @@
+.runtime/
+node_modules/
+*.traineddata
+.env
+.env.*
+!.env.example
+.DS_Store

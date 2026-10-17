@@ -125,7 +125,7 @@ const server=http.createServer(async(req,res)=>{
   const s=sessions.get(id);s.last=Date.now();
   const path=new URL(req.url,ORIGIN).pathname;
   try{
-    if(req.method==='GET'&&path==='/api/status'){respond(res,200,{authenticated:!!s.auth,busy:!!s.busy,version:'0.5.1'});return;}
+    if(req.method==='GET'&&path==='/api/status'){respond(res,200,{authenticated:!!s.auth,busy:!!s.busy,version:'0.6.0'});return;}
     if(req.method==='POST'&&path.startsWith('/api/')){
       if(s.busy){respond(res,409,{error:'上一個操作仍在執行，請稍候'});return;}
       let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>4096)throw new Error('輸入資料過長');}const body=JSON.parse(raw||'{}');s.busy=true;
@@ -143,7 +143,7 @@ const server=http.createServer(async(req,res)=>{
       }finally{s.busy=false;}
       return;
     }
-    const files={'/':['index.html','text/html; charset=utf-8'],'/app.js':['app.js','text/javascript; charset=utf-8'],'/style.css':['style.css','text/css; charset=utf-8']};
+    const files={'/':['index.html','text/html; charset=utf-8'],'/app.js':['app.js','text/javascript; charset=utf-8'],'/frog.js':['frog.js','text/javascript; charset=utf-8'],'/style.css':['style.css','text/css; charset=utf-8']};
     if(req.method==='GET'&&files[path]){const [file,type]=files[path];res.writeHead(200,{'Content-Type':type});res.end(await readFile(ROOT+file));return;}
     respond(res,404,{error:'找不到頁面'});
   }catch(e){respond(res,400,{error:e.name==='TimeoutError'?'官方網站回應逾時，請稍後再試':e.message||'操作失敗',...(path==='/api/login'?{challengeReusable:!!s.form,captcha:s.form&&s.captcha?`data:${s.captchaType};base64,${s.captcha.toString('base64')}`:null}:{})});}

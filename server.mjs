@@ -4,6 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {nightStatus} from './night-status.mjs';
 import {availability} from './availability.mjs';
+import {parseNightRemainder} from './remainder.mjs';
 import {weeklyService} from './weekly.mjs';
 import {bookingService} from './booking.mjs';
 import {cancellationService} from './cancellation.mjs';
@@ -63,6 +64,22 @@ async function api(s,name,params={},withAuth=true) {
   if(['3','4'].includes(String(first?.rescode))){s.auth=null;throw Object.assign(new Error('官方登入已過期，請重新登入'),{officialRejected:true});}
   if(String(first?.rescode)!=='1')throw Object.assign(new Error(String(first?.resmsg||'官方查詢失敗')),{officialRejected:true});
   return data;
+}
+let remainderCache={at:0,value:null};
+async function currentRemainder() {
+  if(remainderCache.value&&Date.now()-remainderCache.at<60000)return remainderCache.value;
+  const remote=new RemoteSession();
+  const config=await(await remote.request('https://libsms.lib.nthu.edu.tw/build/config.js')).text();
+  const account=config.match(/DEVICE_AUTH_ACC:\s*"([^"]+)"/)?.[1];
+  const password=config.match(/DEVICE_AUTH_PASS:\s*"([^"]+)"/)?.[1];
+  if(!account||!password)throw new Error('官方裝置設定格式已變更');
+  const session={remote};
+  const device=await api(session,'DeviceAuth.aspx',{account,password},false);
+  const sid=device[0]?.resdata?.[0]?.sid;
+  if(!sid)throw new Error('無法取得官方目前空位');
+  const value=parseNightRemainder(await api(session,'GetRemainderSpace.aspx',{sid},false));
+  remainderCache={at:Date.now(),value:{...value,updatedAt:new Date().toISOString()}};
+  return remainderCache.value;
 }
 async function login(s,body) {
   if(!s.form||Date.now()-s.challengeAt>5*60000)throw new Error('驗證碼已過期，請重新取得');
@@ -129,7 +146,8 @@ const server=http.createServer(async(req,res)=>{
   const s=sessions.get(id);s.last=Date.now();
   const path=new URL(req.url,ORIGIN).pathname;
   try{
-    if(req.method==='GET'&&path==='/api/status'){respond(res,200,{authenticated:!!s.auth,busy:!!s.busy,version:'0.7.1'});return;}
+    if(req.method==='GET'&&path==='/api/status'){respond(res,200,{authenticated:!!s.auth,busy:!!s.busy,version:'0.7.2'});return;}
+    if(req.method==='GET'&&path==='/api/remainder'){respond(res,200,await currentRemainder());return;}
     if(req.method==='POST'&&path.startsWith('/api/')){
       if(s.busy){respond(res,409,{error:'上一個操作仍在執行，請稍候'});return;}
       let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>4096)throw new Error('輸入資料過長');}const body=JSON.parse(raw||'{}');s.busy=true;

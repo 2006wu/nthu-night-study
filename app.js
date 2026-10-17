@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-let authenticated=false,challenge=false,busy=false,data=null,zone='all';
+let authenticated=false,challenge=false,busy=false,data=null,zone='all',aCurrent=null;
 let favorites=new Set();
 try{favorites=new Set(JSON.parse(localStorage.getItem('seat-favorites')||'[]'));}catch{}
 try{const account=localStorage.getItem('seat-account');if(account){$('account').value=account;$('rememberAccount').checked=true;}}catch{}
@@ -27,13 +27,14 @@ function node(tag,className,text){const e=document.createElement(tag);if(classNa
 function duration(min){return `${Math.floor(min/60)?Math.floor(min/60)+' 小時':''}${min%60?' '+min%60+' 分鐘':''}`.trim()||'0 分鐘';}
 function clock(ms){return parts(ms).slice(11,16);}
 function dayLabel(ms){const day=parts(ms).slice(0,10);return day===data.requested.slice(0,10)?'當日':day;}
-function render(){const root=$('results');root.replaceChildren();if(!data){$('resultTitle').textContent='座位';$('resultMeta').textContent='';root.append(node('div','empty',busy?'查詢中…':'選擇時間後查詢'));return;}
+function renderACurrent(){const visible=aCurrent&&(zone==='all'||zone==='A');$('aCurrent').hidden=!visible;if(visible)$('aCurrent').textContent=`A 區目前尚有 ${aCurrent.available} 席 · 官方未提供座位編號，請至現場機台選位`;}
+function render(){const root=$('results');root.replaceChildren();renderACurrent();if(!data){$('resultTitle').textContent='座位';$('resultMeta').textContent='';root.append(node('div','empty',busy?'查詢中…':'選擇時間後查詢'));return;}
  const rows=data.results.filter(r=>(zone==='all'||r.zone===zone)&&r.minutes>=Number($('minDuration').value)&&($('includeLater').checked||r.availableAtStart)&&(!$('favoriteOnly').checked||favorites.has(r.seat))).sort((a,b)=>Number(favorites.has(b.seat))-Number(favorites.has(a.seat)));
  const seatCount=new Set(rows.map(r=>r.seat)).size;
  $('resultTitle').textContent=`${seatCount} 個座位`;$('resultMeta').textContent=`${data.requested.replace('T',' ')} 起 · ${clock(Date.parse(data.updatedAt))} 更新`;
  const occupiedNames=new Set(rows.map(r=>r.seat));
  const aReadOnly=(zone==='A'||zone==='all')?(data.aSeats||[]).filter(r=>!occupiedNames.has(r.seat)&&!r.onlineAvailable&&(!$('favoriteOnly').checked||favorites.has(r.seat))):[];
- if(zone==='A'&&!data.aSeats?.length&&!rows.length){root.append(node('div','empty','官方未回傳 A 區座位資料'));return;}
+ if(zone==='A'&&!data.aSeats?.length&&!rows.length){root.append(node('div','empty',aCurrent?`官方目前回報 A 區尚有 ${aCurrent.available} 席，但座位編號只在現場機台提供`:'官方未回傳 A 區座位資料'));return;}
  if(!rows.length&&!aReadOnly.length){const empty=node('div','empty');empty.append(node('p','','沒有符合條件的座位'));root.append(empty);return;}
  for(const r of rows){const card=node('article','seat'+(r.availableAtStart?'':' later'));const top=node('div','seat-top');const name=node('div');name.append(node('span','seat-id',r.seat),node('span','zone-tag',r.zone+' 區'));const star=node('button','favorite',favorites.has(r.seat)?'★':'☆');star.type='button';star.setAttribute('aria-label',`${favorites.has(r.seat)?'取消收藏':'收藏'} ${r.seat}`);star.setAttribute('aria-pressed',String(favorites.has(r.seat)));star.onclick=()=>{favorites.has(r.seat)?favorites.delete(r.seat):favorites.add(r.seat);try{localStorage.setItem('seat-favorites',JSON.stringify([...favorites]));}catch{}render();};top.append(name,star);
  const sameDay=parts(r.start).slice(0,10)===parts(r.end).slice(0,10);const hours=node('div','seat-hours',`${clock(r.start)} — ${sameDay?'':parts(r.end).slice(5,10)+' '}${clock(r.end)}`);
@@ -46,6 +47,7 @@ function render(){const root=$('results');root.replaceChildren();if(!data){$('re
 for(const b of $('zones').querySelectorAll('button'))b.onclick=()=>{zone=b.dataset.zone;for(const button of $('zones').querySelectorAll('button'))button.setAttribute('aria-pressed',String(button===b));render();};
 for(const id of ['minDuration','includeLater','favoriteOnly'])$(id).onchange=render;
 api('status').then(d=>auth(d.authenticated)).catch(()=>notice('本機服務連線失敗，請重新啟動程式。'));
+api('remainder').then(d=>{aCurrent=d;renderACurrent();}).catch(()=>{});
 let bookingRow=null,bookingDraft=null,bookingBusy=false;
 function bookingLock(value){bookingBusy=value;for(const id of ['bookingClose','bookingBack','bookingNext','bookingConfirm'])$(id).disabled=value;}
 function bookingError(message){$('bookingError').textContent=message;$('bookingError').hidden=!message;}

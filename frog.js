@@ -17,10 +17,22 @@
     byId('frogMessage').textContent = text;
     byId('frogAction').textContent = action;
   }
+  const cheers = ['一點一點來，今天也有進步。', '呱～專心一小段，就很棒了。', '累了就伸個懶腰，小蛙陪你。', '不必一次讀完，先完成眼前這一頁。', '記得喝水，你已經很努力了。', '今天的努力，會慢慢累積起來。'];
+  let cheerIndex = Math.floor(Math.random() * cheers.length), cheerTimer;
+  function encourage() {
+    if (document.hidden || document.querySelector('dialog[open]') || !panel.hidden) return;
+    byId('frogCheer').textContent = cheers[cheerIndex++ % cheers.length];
+    byId('frogCheer').hidden = false;
+    clearTimeout(cheerTimer);
+    cheerTimer = setTimeout(() => { byId('frogCheer').hidden = true; }, 7000);
+  }
+  setTimeout(encourage, 45000);
+  setInterval(encourage, 150000);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) byId('frogCheer').hidden = true; });
   function open(value) {
     panel.hidden = !value;
     toggle.setAttribute('aria-expanded', String(value));
-    if (value) update();
+    if (value) { byId('frogCheer').hidden = true; update(); if (Math.random() < .4) byId('frogMessage').textContent = cheers[cheerIndex++ % cheers.length]; }
   }
   toggle.addEventListener('click', () => open(panel.hidden));
   byId('frogClose').addEventListener('click', () => { open(false); toggle.focus(); });

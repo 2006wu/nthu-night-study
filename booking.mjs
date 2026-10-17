@@ -40,6 +40,7 @@ export function bookingService(api,now=()=>Date.now()){
       if(!draft)throw new Error('請重新確認座位與時段');
       if(draft.state==='done')return draft.result;
       if(draft.state!=='ready')throw new Error(draft.message||'預約已處理，請查看官方預約現況');
+      if(s.bookingUncertain)throw new Error('上次預約結果未確認，請先查看官方現況，再重新登入');
       if(draft.expires<now())throw new Error('確認已過期，請重新選位');
       const values=await check(s,draft);
       draft.state='sending';

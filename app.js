@@ -62,3 +62,43 @@ async function openCancellation(row){if(busy||cancelBusy)return;cancelDraft=null
 for(const id of ['cancelClose','cancelKeep'])$(id).onclick=()=>{if(!cancelBusy)$('cancelDialog').close();};
 $('cancelDialog').addEventListener('cancel',event=>{if(cancelBusy)event.preventDefault();});
 $('cancelConfirm').onclick=async()=>{if(cancelBusy||!cancelDraft)return;cancelLock(true);cancelError('取消中…');try{await api('cancellation/confirm',{token:cancelDraft.token});$('cancelTitle').textContent='已取消預約';$('cancelConfirm').hidden=true;$('cancelKeep').textContent='關閉';cancelError('');data=null;render();await loadReservations();notice(`${cancelDraft.seat} 已取消`,true);}catch(e){cancelError(e.message);$('cancelConfirm').hidden=true;$('cancelKeep').textContent='關閉';}finally{cancelLock(false);}};
+
+let weeklyDraft=null,weeklyBusy=false;
+function weeklyLock(value){weeklyBusy=value;lock(value);for(const id of ['weeklyClose','weeklyPreview','weeklyConfirm'])$(id).disabled=value;}
+function weeklyError(message){$('weeklyError').textContent=message;$('weeklyError').hidden=!message;}
+function renderWeekly(){
+  const root=$('weeklyDays');root.replaceChildren();if(!weeklyDraft)return;
+  const states={existing:'已有預約',ready:'待預約',done:'已預約',unavailable:'無法安排',failed:'失敗',unknown:'待確認',sending:'送出中'};
+  const seats=new Set(weeklyDraft.days.filter(d=>d.seat).map(d=>d.seat));
+  const ready=weeklyDraft.days.filter(d=>d.state==='ready').length,done=weeklyDraft.days.filter(d=>d.state==='done').length;
+  $('weeklySummary').textContent=`${weeklyDraft.startDate} 起 · ${seats.size===1?'固定座位 '+[...seats][0]:seats.size?'需要使用 '+seats.size+' 個座位':'尚無可安排座位'}${done?' · 已成功 '+done+' 天':''}`;
+  for(const d of weeklyDraft.days){const row=node('div','weekly-row');const info=node('div');info.append(node('strong','',`${d.date.slice(5).replace('-','/')}　${d.seat||'—'}`));if(d.message)info.append(node('small','muted',d.message));row.append(info,node('span',d.state==='done'?'weekly-done':'muted',states[d.state]));root.append(row);}
+  $('weeklyConfirm').hidden=!ready||weeklyDraft.stopped;
+  $('weeklyConfirm').textContent=`確認預約 ${ready} 天`;
+}
+$('frogWeekly').onclick=async()=>{
+  $('frogPanel').hidden=true;$('frogToggle').setAttribute('aria-expanded','false');
+  if(busy)return;
+  if(!authenticated){$('loginPanel').open=true;notice('先登入，小蛙才能幫你安排一週');if(!challenge)await refresh();return;}
+  weeklyDraft=null;renderWeekly();$('weeklySummary').textContent='優先固定座位';$('weeklyConfirm').hidden=true;weeklyError('');$('weeklyDialog').showModal();await previewWeekly();
+};
+async function previewWeekly(){if(weeklyBusy)return;weeklyLock(true);weeklyError('正在查看七天空位…');$('weeklyConfirm').hidden=true;try{weeklyDraft=await api('weekly/preview',{favorites:[...favorites]});renderWeekly();weeklyError(weeklyDraft.days.some(d=>d.state==='unavailable')?'部分日期無法安排，確認只會預約上方「待預約」日期。':'');}catch(e){weeklyDraft=null;$('weeklyDays').replaceChildren();weeklyError(e.message);}finally{weeklyLock(false);}}
+$('weeklyPreview').onclick=previewWeekly;
+$('weeklyClose').onclick=()=>{if(!weeklyBusy)$('weeklyDialog').close();};
+$('weeklyDialog').addEventListener('cancel',e=>{if(weeklyBusy)e.preventDefault();});
+$('weeklyConfirm').onclick=async()=>{
+  if(weeklyBusy||!weeklyDraft)return;
+  weeklyLock(true);weeklyError('依序預約中，請稍候…');
+  try{
+    for(let index=0;index<7;index++){
+      if(weeklyDraft.days[index].state!=='ready')continue;
+      weeklyError(`正在預約 ${weeklyDraft.days[index].date}…`);
+      weeklyDraft=await api('weekly/confirm',{token:weeklyDraft.token,index});renderWeekly();
+      if(weeklyDraft.stopped)break;
+    }
+    const done=weeklyDraft.days.filter(d=>d.state==='done').length;
+    weeklyError(weeklyDraft.stopped?'已停止，後續日期尚未送出。請查看各日結果。':'');
+    $('weeklyConfirm').hidden=true;notice(`七天安排：成功預約 ${done} 天`,done>0);data=null;render();
+  }catch(e){weeklyError(`${e.message}。已停止；請查看「我的預約」確認結果後再操作。`);$('weeklyConfirm').hidden=true;}
+  finally{weeklyLock(false);}
+};

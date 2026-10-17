@@ -3,6 +3,7 @@ import {randomBytes,createDecipheriv} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import {availability} from './availability.mjs';
+import {weeklyService} from './weekly.mjs';
 import {bookingService} from './booking.mjs';
 import {cancellationService} from './cancellation.mjs';
 import {deploymentConfig} from './deployment.mjs';
@@ -48,7 +49,7 @@ class RemoteSession {
   }
 }
 async function prepare(s) {
-  s.remote=new RemoteSession();s.auth=null;s.userId=null;s.offers=null;s.drafts=null;s.cancelOffers=null;s.cancelDrafts=null;
+  s.weekly=null;s.remote=new RemoteSession();s.auth=null;s.userId=null;s.offers=null;s.drafts=null;s.cancelOffers=null;s.cancelDrafts=null;
   const r=await s.remote.request(ENTRY);const html=await r.text();
   s.form=loginForm(html);s.loginURL=r.url;
   const image=await s.remote.request(s.form.image);s.captcha=Buffer.from(await image.arrayBuffer());s.captchaType=image.headers.get('content-type')||'image/png';s.challengeAt=Date.now();
@@ -113,6 +114,7 @@ async function query(s,body) {
 }
 function respond(res,status,data){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));}
 const booking=bookingService(api);
+const weekly=weeklyService(api);
 const cancellation=cancellationService(api);
 const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Content-Security-Policy',"default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
@@ -125,7 +127,7 @@ const server=http.createServer(async(req,res)=>{
   const s=sessions.get(id);s.last=Date.now();
   const path=new URL(req.url,ORIGIN).pathname;
   try{
-    if(req.method==='GET'&&path==='/api/status'){respond(res,200,{authenticated:!!s.auth,busy:!!s.busy,version:'0.6.0'});return;}
+    if(req.method==='GET'&&path==='/api/status'){respond(res,200,{authenticated:!!s.auth,busy:!!s.busy,version:'0.7.0'});return;}
     if(req.method==='POST'&&path.startsWith('/api/')){
       if(s.busy){respond(res,409,{error:'上一個操作仍在執行，請稍候'});return;}
       let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>4096)throw new Error('輸入資料過長');}const body=JSON.parse(raw||'{}');s.busy=true;
@@ -133,12 +135,14 @@ const server=http.createServer(async(req,res)=>{
         if(path==='/api/challenge')respond(res,200,await prepare(s));
         else if(path==='/api/login')respond(res,200,await login(s,body));
         else if(path==='/api/query')respond(res,200,await query(s,body));
+        else if(path==='/api/weekly/preview')respond(res,200,await weekly.preview(s,body));
+        else if(path==='/api/weekly/confirm')respond(res,200,await weekly.confirm(s,body));
         else if(path==='/api/booking/preview')respond(res,200,await booking.preview(s,body));
         else if(path==='/api/booking/confirm')respond(res,200,await booking.confirm(s,body));
         else if(path==='/api/booking/list')respond(res,200,await cancellation.list(s));
         else if(path==='/api/cancellation/preview')respond(res,200,await cancellation.preview(s,body));
         else if(path==='/api/cancellation/confirm')respond(res,200,await cancellation.confirm(s,body));
-        else if(path==='/api/logout'){s.auth=null;s.userId=null;s.offers=null;s.drafts=null;s.cancelOffers=null;s.cancelDrafts=null;s.remote=null;s.form=null;s.captcha=null;respond(res,200,{authenticated:false});}
+        else if(path==='/api/logout'){s.weekly=null;s.auth=null;s.userId=null;s.offers=null;s.drafts=null;s.cancelOffers=null;s.cancelDrafts=null;s.remote=null;s.form=null;s.captcha=null;respond(res,200,{authenticated:false});}
         else respond(res,404,{error:'找不到功能'});
       }finally{s.busy=false;}
       return;
